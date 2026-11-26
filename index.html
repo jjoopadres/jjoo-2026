@@ -52,6 +52,25 @@
   .detail .zero td{color:#b3b8c2}
   .hint{font-size:.8rem;color:var(--muted);margin:10px 4px}
   .tie{font-size:.72rem;background:#fff3cd;color:#7a5b00;border-radius:6px;padding:1px 6px;margin-left:6px}
+  .tabs{display:flex;gap:6px;background:#eef1f6;border-radius:999px;padding:4px;margin:0 0 20px;width:max-content;max-width:100%}
+  .tabs button{border:0;background:transparent;padding:8px 16px;border-radius:999px;font:inherit;font-weight:600;color:var(--muted);cursor:pointer}
+  .tabs button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 4px #0000001a}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+  .chips button{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:6px 11px;font:inherit;font-size:.85rem;cursor:pointer;color:var(--ink)}
+  .chips button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .chips small{opacity:.7;margin-left:4px}
+  .dcard{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 2px 10px #0000000a}
+  .dcard h2{margin:0;padding:14px 16px;font-size:1.1rem;border-bottom:1px solid var(--line)}
+  .dcard h2 small{font-weight:500;color:var(--muted);font-size:.8rem;margin-left:6px}
+  .dl{display:grid;grid-template-columns:44px 1fr 70px;gap:10px;align-items:center;padding:10px 16px;border-top:1px solid var(--line)}
+  .dl:first-of-type{border-top:none}
+  .dl.pend{color:#b3b8c2}
+  .dl.guest .acr{color:var(--muted)}
+  .dl .pt{text-align:right;font-weight:700}
+  .tag{font-size:.7rem;border-radius:6px;padding:1px 6px;margin-left:6px;background:#eef1f6;color:var(--muted)}
+  .tag.t{background:#fff3cd;color:#7a5b00}
+  .p1b{box-shadow:inset 4px 0 0 var(--gold)} .p2b{box-shadow:inset 4px 0 0 var(--silver)} .p3b{box-shadow:inset 4px 0 0 var(--bronze)}
+  .hidden{display:none}
   footer{margin-top:26px;font-size:.8rem;color:var(--muted);line-height:1.5}
   .loading{padding:40px;text-align:center;color:var(--muted)}
   @media (max-width:560px){
@@ -71,9 +90,17 @@
     <span class="dot" id="dot"></span><span id="updated">Cargando resultados…</span>
     <button class="refresh" id="btn">Actualizar</button>
   </div>
-  <section class="podium" id="podium"></section>
-  <section class="board" id="board"><div class="loading">Cargando…</div></section>
-  <p class="hint">Toca un colegio para ver el detalle de puntos por disciplina.</p>
+  <nav class="tabs"><button id="tG" class="on">Tabla general</button><button id="tD">Por disciplina</button></nav>
+  <div id="vG">
+    <section class="podium" id="podium"></section>
+    <section class="board" id="board"><div class="loading">Cargando…</div></section>
+    <p class="hint">Toca un colegio para ver el detalle de puntos por disciplina.</p>
+  </div>
+  <div id="vD" class="hidden">
+    <div class="chips" id="chips"></div>
+    <section class="dcard" id="dcard"><div class="loading">Cargando…</div></section>
+    <p class="hint">Puntos = puntaje que suma a la tabla general. Los invitados ocupan su lugar pero no suman puntos.</p>
+  </div>
   <footer>
     Puntajes según el Reglamento JJOO 2026 (Tabla 1-5). Los colegios invitados no suman a la tabla general.
     El puntaje de atletismo es provisorio hasta que terminen todas las pruebas.
@@ -104,6 +131,8 @@ const SCHOOLS = {
   CT:{n:"Tabancura",c:["#4fb3e8","#4fb3e8"]},
   VMA:{n:"Villa María Academy",c:["#e86aa6","#e86aa6"]}
 };
+const GUESTS = {PHJA:"Padre Hurtado y Juanita de Los Andes",SGS:"Saint Gabriel's School",AES:"Andrée English School"};
+const sname = a => SCHOOLS[a]?SCHOOLS[a].n:(GUESTS[a]||a);
 const chip = a => { const c=(SCHOOLS[a]||{c:["#ccc","#ccc"]}).c;
   return `<span class="chip" style="background:linear-gradient(135deg,${c[0]} 50%,${c[1]} 50%)"></span>`; };
 const barColor = a => { const c=(SCHOOLS[a]||{c:["#1f3864"]}).c[0]; return c==="#ffffff"?"#7fb8e0":c; };
@@ -169,6 +198,79 @@ function render(data){
       <div class="detail"><table>${det}</table></div></div>`;}).join("");
 }
 
+const gidUrl = (base,gid) => base.replace(/gid=\d+/,"gid="+gid);
+const GID_RES = 1696698175, GID_ATL = 42774937;
+let DISC = [], current = null;
+
+function extractRes(rows){
+  const h = rows.findIndex(r => r.map(clean).includes("Disciplina") && r.map(clean).includes("Lugar"));
+  if(h<0) return [];
+  const head = rows[h].map(clean);
+  const ix = k => head.findIndex(x => x.startsWith(k));
+  const iD=ix("Disciplina"), iC=ix("Categoría"), iL=ix("Lugar"), iCol=ix("Colegio"), iT=ix("Tipo"), iP=ix("Puntos para"), iM=ix("Puntos manual");
+  const map = new Map();
+  for(let r=h+1;r<rows.length;r++){
+    const d=clean(rows[r][iD]), c=clean(rows[r][iC]); if(!d||!c) continue;
+    const key=d+" "+c; if(!map.has(key)) map.set(key,{name:d,cat:c,rows:[]});
+    map.get(key).rows.push({lugar:num(rows[r][iL]),col:clean(rows[r][iCol]),tipo:clean(rows[r][iT]),
+      pts:num(rows[r][iP]),manual:clean(rows[r][iM])!==""});
+  }
+  return [...map.values()];
+}
+function extractAtl(rows){
+  const h = rows.findIndex(r => clean(r[0])==="Colegio" && clean(r[1]).startsWith("Puntos damas"));
+  if(h<0) return [];
+  const list=[];
+  for(let r=h+1;r<rows.length;r++){ const a=clean(rows[r][0]); if(!SCHOOLS[a]) break;
+    list.push({a, pd:num(rows[r][1]), ld:num(rows[r][2]), gd:num(rows[r][3]), pv:num(rows[r][4]), lv:num(rows[r][5]), gv:num(rows[r][6])}); }
+  const mk=(lab,p,l,g)=>({name:"Atletismo",cat:lab,atl:true,rows:list.filter(x=>x[p]>0).sort((x,y)=>x[l]-y[l])
+      .map(x=>({lugar:x[l],col:x.a,tipo:"Miembro",pts:x[g],acc:x[p]}))});
+  return [mk("Damas","pd","ld","gd"), mk("Varones","pv","lv","gv")];
+}
+const label = d => (d.name==="Tenis dobles"?"Tenis":d.name==="Tenis de mesa"?"T. de mesa":d.name)+" "+d.cat;
+
+function renderChips(){
+  document.getElementById("chips").innerHTML = DISC.map((d,i)=>{
+    const n=d.atl? d.rows.length : d.rows.filter(r=>r.col).length;
+    const tot=d.atl? "" : `<small>${n}/12</small>`;
+    return `<button class="${i===current?"on":""}" data-i="${i}">${label(d)}${tot}</button>`;}).join("");
+  document.querySelectorAll("#chips button").forEach(b=>b.onclick=()=>{current=+b.dataset.i;renderChips();renderDisc();});
+}
+function renderDisc(){
+  const d=DISC[current], el=document.getElementById("dcard"); if(!d){el.innerHTML='<div class="loading">Sin datos</div>';return;}
+  let body;
+  if(d.atl){
+    body = d.rows.length? d.rows.map(r=>`<div class="dl ${r.lugar<=3?"p"+r.lugar+"b":""}"><div class="pos">${r.lugar}</div>
+      <div class="who">${chip(r.col)}<span class="acr">${r.col}</span><span class="name">${sname(r.col)}</span>
+      <span class="tag">${fmt(r.acc)} pts en pruebas</span></div><div class="pt">${fmt(r.pts)}</div></div>`).join("")
+      : '<div class="loading">Aún no hay pruebas cargadas</div>';
+    body += '<p class="hint" style="padding:0 16px 10px">Ranking provisorio: suma de puntos de las pruebas cargadas hasta ahora.</p>';
+  } else {
+    body = d.rows.slice().sort((x,y)=>x.lugar-y.lugar).map(r=>{
+      if(!r.col) return `<div class="dl pend"><div class="pos">${r.lugar}</div><div>Por definir</div><div class="pt">–</div></div>`;
+      const g=r.tipo==="Invitado";
+      return `<div class="dl ${g?"guest":""} ${r.lugar<=3?"p"+r.lugar+"b":""}"><div class="pos">${r.lugar}</div>
+        <div class="who">${chip(r.col)}<span class="acr">${r.col}</span><span class="name">${sname(r.col)}</span>
+        ${g?'<span class="tag">invitado</span>':''}${r.manual?'<span class="tag t">empate</span>':''}</div>
+        <div class="pt">${g?"–":fmt(r.pts)}</div></div>`;}).join("");
+  }
+  el.innerHTML = `<h2>${label(d)}<small>${d.atl?"Grupo 1":""}</small></h2>${body}`;
+}
+async function getCSV(u){
+  const res=await fetch(u+(u.includes("?")?"&":"?")+"t="+Date.now(),{cache:"no-store"});
+  if(!res.ok) throw new Error(res.status); return parseCSV(await res.text());
+}
+async function loadDisc(base){
+  try{
+    const [res,atl]=await Promise.all([getCSV(gidUrl(base,GID_RES)).catch(()=>null), getCSV(gidUrl(base,GID_ATL)).catch(()=>null)]);
+    const list=[...(atl?extractAtl(atl):[]), ...(res?extractRes(res):[])];
+    if(!list.length) return;
+    DISC=list;
+    if(current===null){ const k=DISC.findIndex(d=>!d.atl && d.rows.some(r=>r.col)); current=k<0?0:k; }
+    renderChips(); renderDisc();
+  }catch(e){ console.warn(e); }
+}
+
 async function load(){
   const dot=document.getElementById("dot"), up=document.getElementById("updated");
   const urls=[CSV_URL.startsWith("http")?CSV_URL:null, FALLBACK_URL].filter(Boolean);
@@ -177,7 +279,7 @@ async function load(){
       const res=await fetch(u+(u.includes("?")?"&":"?")+"t="+Date.now(),{cache:"no-store"});
       if(!res.ok) throw new Error(res.status);
       const data=extract(parseCSV(await res.text()));
-      render(data); dot.className="dot";
+      render(data); dot.className="dot"; loadDisc(u.includes("/d/e/")?u:CSV_URL);
       up.textContent="Actualizado a las "+new Date().toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"})+" · se refresca cada minuto";
       return;
     }catch(e){ console.warn("Fallo", u, e); }
@@ -185,6 +287,9 @@ async function load(){
   dot.className="dot err"; up.textContent="No se pudieron cargar los resultados. Reintentando…";
 }
 document.getElementById("btn").onclick=load;
+const tab=v=>{document.getElementById("vG").classList.toggle("hidden",v!=="G");document.getElementById("vD").classList.toggle("hidden",v!=="D");
+  document.getElementById("tG").classList.toggle("on",v==="G");document.getElementById("tD").classList.toggle("on",v==="D");};
+document.getElementById("tG").onclick=()=>tab("G"); document.getElementById("tD").onclick=()=>tab("D");
 load(); setInterval(load, REFRESH_SECONDS*1000);
 </script>
 </body>
