@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JJOO para Padres 2026 · Tabla General</title>
+<style>
+  :root{
+    --paper:#faf7f2; --ink:#1f2a3a; --muted:#6b7280; --line:#e7e1d6;
+    --card:#ffffff; --accent:#1f3864; --gold:#e9b949; --silver:#b8bec8; --bronze:#d08a5a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);
+    background:
+      radial-gradient(1200px 500px at 10% -10%, #e8eff8 0%, transparent 60%),
+      radial-gradient(900px 400px at 100% 0%, #fbe9ef 0%, transparent 55%),
+      var(--paper);
+    min-height:100vh}
+  .wrap{max-width:980px;margin:0 auto;padding:28px 18px 60px}
+  header h1{margin:0;font-size:clamp(1.5rem,4vw,2.2rem);letter-spacing:-.01em}
+  header p{margin:6px 0 0;color:var(--muted)}
+  .status{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:14px 0 22px;font-size:.88rem;color:var(--muted)}
+  .dot{width:9px;height:9px;border-radius:50%;background:#22a06b;box-shadow:0 0 0 4px #22a06b22}
+  .dot.err{background:#d64545;box-shadow:0 0 0 4px #d6454522}
+  button.refresh{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:5px 12px;cursor:pointer;color:var(--ink);font:inherit}
+  .podium{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:end;margin-bottom:26px}
+  .pod{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 12px;text-align:center;box-shadow:0 2px 10px #0000000a}
+  .pod .medal{font-weight:700;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .pod .acr{font-size:1.6rem;font-weight:800;margin:6px 0 2px}
+  .pod .name{font-size:.82rem;color:var(--muted);min-height:2.2em}
+  .pod .pts{font-size:1.25rem;font-weight:700;margin-top:6px}
+  .pod.p1{border-top:6px solid var(--gold);padding-top:26px}
+  .pod.p2{border-top:6px solid var(--silver)}
+  .pod.p3{border-top:6px solid var(--bronze)}
+  .chip{display:inline-block;width:14px;height:14px;border-radius:50%;vertical-align:-2px;margin-right:6px;border:1px solid #00000022}
+  .board{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 2px 10px #0000000a}
+  .row{display:grid;grid-template-columns:44px 1fr 90px;gap:10px;align-items:center;padding:12px 16px;border-top:1px solid var(--line);cursor:pointer}
+  .row:first-child{border-top:none}
+  .row:hover{background:#f6f8fc}
+  .pos{font-weight:800;font-size:1.05rem;text-align:center}
+  .who .acr{font-weight:700}
+  .who .name{color:var(--muted);font-size:.85rem;margin-left:4px}
+  .bar{height:7px;border-radius:99px;background:#eef1f6;margin-top:7px;overflow:hidden}
+  .bar span{display:block;height:100%;border-radius:99px}
+  .total{text-align:right;font-weight:800;font-size:1.15rem}
+  .medals{font-size:.78rem;color:var(--muted);text-align:right}
+  .detail{display:none;grid-column:1/-1;padding:4px 0 6px 54px}
+  .row.open .detail{display:block}
+  .detail table{border-collapse:collapse;width:100%;font-size:.85rem}
+  .detail td{padding:4px 6px;border-bottom:1px dashed var(--line)}
+  .detail td:last-child{text-align:right;font-weight:600}
+  .detail .zero td{color:#b3b8c2}
+  .hint{font-size:.8rem;color:var(--muted);margin:10px 4px}
+  .tie{font-size:.72rem;background:#fff3cd;color:#7a5b00;border-radius:6px;padding:1px 6px;margin-left:6px}
+  footer{margin-top:26px;font-size:.8rem;color:var(--muted);line-height:1.5}
+  .loading{padding:40px;text-align:center;color:var(--muted)}
+  @media (max-width:560px){
+    .podium{gap:8px}.pod{padding:12px 6px}.pod .acr{font-size:1.25rem}.pod .name{display:none}
+    .row{grid-template-columns:34px 1fr 72px;padding:11px 12px}.detail{padding-left:0}
+    .who .name{display:block;margin:2px 0 0}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>JJOO para Padres 2026</h1>
+    <p>Tabla General · puntaje acumulado por colegio</p>
+  </header>
+  <div class="status">
+    <span class="dot" id="dot"></span><span id="updated">Cargando resultados…</span>
+    <button class="refresh" id="btn">Actualizar</button>
+  </div>
+  <section class="podium" id="podium"></section>
+  <section class="board" id="board"><div class="loading">Cargando…</div></section>
+  <p class="hint">Toca un colegio para ver el detalle de puntos por disciplina.</p>
+  <footer>
+    Puntajes según el Reglamento JJOO 2026 (Tabla 1-5). Los colegios invitados no suman a la tabla general.
+    El puntaje de atletismo es provisorio hasta que terminen todas las pruebas.
+    Desempate: cantidad de 1°, luego 2° y luego 3° lugares (art. 1.12).
+  </footer>
+</div>
+
+<script>
+// ===== Configuración =====
+// Pega aquí el link de "Publicar en la web" (formato CSV) de la pestaña Tabla General.
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTHQ0xuWAjh8gK6GDb-QV5JWKNSkFTZUn26qRQPYAp7C5QdLryk-5elbVhJ2eilzQyueTJrUkeTKtvO/pub?gid=503798063&single=true&output=csv";
+// Respaldo: funciona si el Sheet está compartido como "Cualquier persona con el enlace puede ver".
+const SHEET_ID = "18G_yzNxkJU243kEC3_fjEd45nHOjcfwOj6Ba9IeSnJ8";
+const FALLBACK_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent("Tabla General")}`;
+const REFRESH_SECONDS = 60;
+
+const SCHOOLS = {
+  CVD:{n:"Verbo Divino",c:["#1b7a3a","#ffffff"]},
+  SIEB:{n:"San Ignacio El Bosque",c:["#c8102e","#f2c200"]},
+  CSG:{n:"Saint George",c:["#f2c200","#f2c200"]},
+  SSCC:{n:"SSCC Manquehue",c:["#ffffff","#7fb8e0"]},
+  CC:{n:"Cumbres",c:["#1f4e9c","#f2c200"]},
+  CE:{n:"Everest",c:["#2a5caa","#ffffff"]},
+  LM:{n:"La Maisonnette",c:["#1d3f8f","#c8102e"]},
+  SCA:{n:"SSCC Apoquindo",c:["#0b2545","#1b7a3a"]},
+  SFJH:{n:"San Francisco Javier",c:["#8a8f98","#8a8f98"]},
+  SU:{n:"Santa Úrsula",c:["#1a1a1a","#c8102e"]},
+  CT:{n:"Tabancura",c:["#4fb3e8","#4fb3e8"]},
+  VMA:{n:"Villa María Academy",c:["#e86aa6","#e86aa6"]}
+};
+const chip = a => { const c=(SCHOOLS[a]||{c:["#ccc","#ccc"]}).c;
+  return `<span class="chip" style="background:linear-gradient(135deg,${c[0]} 50%,${c[1]} 50%)"></span>`; };
+const barColor = a => { const c=(SCHOOLS[a]||{c:["#1f3864"]}).c[0]; return c==="#ffffff"?"#7fb8e0":c; };
+
+function parseCSV(text){
+  const rows=[]; let row=[], f="", q=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(q){ if(ch==='"'){ if(text[i+1]==='"'){f+='"';i++;} else q=false; } else f+=ch; }
+    else if(ch==='"') q=true;
+    else if(ch===','){ row.push(f); f=""; }
+    else if(ch==='\n'){ row.push(f); rows.push(row); row=[]; f=""; }
+    else if(ch!=='\r') f+=ch;
+  }
+  if(f!==""||row.length){ row.push(f); rows.push(row); }
+  return rows;
+}
+// "133,0" / "79.5" / "-" / "" -> número
+function num(v){
+  if(v==null) return 0; v=String(v).trim();
+  if(v===""||v==="-") return 0;
+  if(/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(v)) v=v.replace(/\./g,"").replace(",",".");
+  else v=v.replace(",",".");
+  const n=parseFloat(v); return isNaN(n)?0:n;
+}
+const fmt = n => (Math.round(n*10)/10).toLocaleString("es-CL",{maximumFractionDigits:1});
+const clean = h => String(h||"").replace(/-\s*\n\s*/g,"").replace(/\s+/g," ").trim();
+
+function extract(rows){
+  const h = rows.findIndex(r => clean(r[0])==="Lugar" && clean(r[1])==="Colegio");
+  if(h<0) throw new Error("No encontré la tabla");
+  const head = rows[h].map(clean);
+  const iTot=head.indexOf("TOTAL"), i1=head.indexOf("N° 1°"), i2=head.indexOf("N° 2°"), i3=head.indexOf("N° 3°"), iEmp=head.indexOf("Empate");
+  const discCols=[]; for(let j=iTot+1;j<(i1>0?i1:head.length);j++) if(head[j]) discCols.push(j);
+  const out=[];
+  for(let r=h+1;r<rows.length;r++){
+    const a=clean(rows[r][1]); if(!SCHOOLS[a]) break;
+    out.push({acr:a,pos:num(rows[r][0]),total:num(rows[r][iTot]),
+      g:num(rows[r][i1]),s:num(rows[r][i2]),b:num(rows[r][i3]),
+      tie:iEmp>=0 && clean(rows[r][iEmp])!=="",
+      detail:discCols.map(j=>[head[j],num(rows[r][j])])});
+  }
+  out.sort((x,y)=>x.pos-y.pos || y.total-x.total);
+  return out;
+}
+
+function render(data){
+  const max=Math.max(1,...data.map(d=>d.total));
+  const labels=["1° lugar","2° lugar","3° lugar"];
+  document.getElementById("podium").innerHTML=[1,0,2].map(i=>{
+    const d=data[i]; if(!d) return "<div></div>";
+    return `<div class="pod p${i+1}"><div class="medal">${labels[i]}</div>
+      <div class="acr">${chip(d.acr)}${d.acr}</div><div class="name">${SCHOOLS[d.acr].n}</div>
+      <div class="pts">${fmt(d.total)} pts</div></div>`;}).join("");
+  document.getElementById("board").innerHTML=data.map(d=>{
+    const det=d.detail.slice().sort((x,y)=>y[1]-x[1]).map(([k,v])=>
+      `<tr class="${v?"":"zero"}"><td>${k}</td><td>${v?fmt(v):"–"}</td></tr>`).join("");
+    return `<div class="row" onclick="this.classList.toggle('open')">
+      <div class="pos">${d.pos}</div>
+      <div class="who">${chip(d.acr)}<span class="acr">${d.acr}</span><span class="name">${SCHOOLS[d.acr].n}</span>${d.tie?'<span class="tie">empate</span>':''}
+        <div class="bar"><span style="width:${(d.total/max*100).toFixed(1)}%;background:${barColor(d.acr)}"></span></div></div>
+      <div><div class="total">${fmt(d.total)}</div><div class="medals">${d.g}·${d.s}·${d.b} (1°·2°·3°)</div></div>
+      <div class="detail"><table>${det}</table></div></div>`;}).join("");
+}
+
+async function load(){
+  const dot=document.getElementById("dot"), up=document.getElementById("updated");
+  const urls=[CSV_URL.startsWith("http")?CSV_URL:null, FALLBACK_URL].filter(Boolean);
+  for(const u of urls){
+    try{
+      const res=await fetch(u+(u.includes("?")?"&":"?")+"t="+Date.now(),{cache:"no-store"});
+      if(!res.ok) throw new Error(res.status);
+      const data=extract(parseCSV(await res.text()));
+      render(data); dot.className="dot";
+      up.textContent="Actualizado a las "+new Date().toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"})+" · se refresca cada minuto";
+      return;
+    }catch(e){ console.warn("Fallo", u, e); }
+  }
+  dot.className="dot err"; up.textContent="No se pudieron cargar los resultados. Reintentando…";
+}
+document.getElementById("btn").onclick=load;
+load(); setInterval(load, REFRESH_SECONDS*1000);
+</script>
+</body>
+</html>
